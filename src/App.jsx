@@ -1,3 +1,5 @@
+// App.jsx
+
 import "./App.css";
 import TypingTestGame from "./Components/Game";
 import Home from "./Components/Home";
@@ -7,7 +9,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import SinglePlayer from "./Components/SinglePlayer";
 import Multiplayer from "./Components/Multiplayer";
 import { DarkModeProvider, useDarkMode } from "./DarkModeContext";
-
+import MultiplayerTypingTestGame from "./Components/MutlGame"; // Updated import
 
 const ToggleButton = () => {
   const { isDarkMode, toggleDarkMode } = useDarkMode();
@@ -21,18 +23,20 @@ const ToggleButton = () => {
     </div>
   );
 };
+
 function App() {
   const [level, setLevel] = useState("easy");
   return (
     <BrowserRouter>
       <DarkModeProvider>
-         <ToggleButton />
+        <ToggleButton />
         <LevelContext.Provider value={{ level, setLevel }}>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/single-game" element={<SinglePlayer />} />
             <Route path="/multi-game" element={<Multiplayer />} />
             <Route path="/start" element={<TypingTestGame />} />
+            <Route path="/start-mult/:index" element={<MultiplayerTypingTestGame />} /> {/* Updated route */}
           </Routes>
         </LevelContext.Provider>
       </DarkModeProvider>

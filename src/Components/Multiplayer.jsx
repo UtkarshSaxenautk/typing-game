@@ -2,28 +2,33 @@ import React, { useContext } from 'react';
 import { LevelContext } from '../GameContext';
 import { useDarkMode } from '../DarkModeContext';
 import { useNavigate } from 'react-router-dom';
+import io from 'socket.io-client'; // Import socket.io-client
 
-const SinglePlayer = () => {
+const MultiPlayer = () => {
   const { level, setLevel } = useContext(LevelContext);
-    const { isDarkMode } = useDarkMode();
-    const naviagte = useNavigate()
+  const { isDarkMode } = useDarkMode();
+  const navigate = useNavigate();
 
   const buttonStyle = `py-2 px-4 rounded-lg hover:bg-${isDarkMode ? 'white' : 'black'} ${
     isDarkMode ? 'text-black' : 'text-white'
-        }`;
-    
-    const handleEasyClick = () => {
-        setLevel('easy');
-        naviagte('start')
-    }
-    const handleMediumClick = () => {
-        setLevel('medium');
-        naviagte('start')
-    }
-    const handleHardClick = () => {
-        setLevel('hard');
-        naviagte('start')
-    }
+  }`;
+
+  const handleDifficultyClick = (difficulty) => {
+    setLevel(difficulty);
+
+    // Replace 'http://localhost:5000' with your server URL
+    const socket = io('http://localhost:5000');
+
+    // Emit the selected difficulty level to the server
+    socket.emit('select-difficulty', difficulty);
+
+    // Listen for 'matched-difficulty' event from the server
+    socket.on('matched-difficulty', (data) => {
+      console.log('Matched Difficulty:', data.dif);
+      navigate(`/start-mult/${data.index}`); // Navigate to the multiplayer game component
+    });
+  };
+
   return (
     <div className={`flex justify-center items-center h-screen ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className={`max-w-md mx-auto p-6 ${isDarkMode ? 'bg-gray-700' : 'bg-white'} rounded-lg shadow-lg`}>
@@ -31,16 +36,13 @@ const SinglePlayer = () => {
           Select Difficulty Level
         </h2>
         <div className="flex flex-col gap-4">
-          <button onClick={handleEasyClick} className={`${buttonStyle} bg-blue-500 focus:ring focus:ring-blue-200`}>
+          <button onClick={() => handleDifficultyClick('easy')} className={`${buttonStyle} bg-blue-500 focus:ring focus:ring-blue-200`}>
             Easy
           </button>
-          <button
-            onClick={handleMediumClick}
-            className={`${buttonStyle} bg-green-500 focus:ring focus:ring-green-200`}
-          >
+          <button onClick={() => handleDifficultyClick('medium')} className={`${buttonStyle} bg-green-500 focus:ring focus:ring-green-200`}>
             Medium
           </button>
-          <button onClick={handleHardClick} className={`${buttonStyle} bg-red-500 focus:ring focus:ring-red-200`}>
+          <button onClick={() => handleDifficultyClick('hard')} className={`${buttonStyle} bg-red-500 focus:ring focus:ring-red-200`}>
             Hard
           </button>
         </div>
@@ -49,4 +51,4 @@ const SinglePlayer = () => {
   );
 };
 
-export default SinglePlayer;
+export default MultiPlayer;
