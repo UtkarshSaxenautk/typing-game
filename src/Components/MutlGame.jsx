@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { io } from 'socket.io-client';
-import { Easy, Medium, Hard } from '../assets/Data';
 import { useDarkMode } from '../DarkModeContext';
-import { useNavigate, useParams } from 'react-router-dom'; // Import useParams to get the multiplayer hash
-import { LevelContext } from '../GameContext';
+import { useNavigate, useParams } from 'react-router-dom';
+import { LevelContext, NameContext } from '../GameContext';
+import { Easy, Medium, Hard } from '../assets/Data';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const socket = io('http://localhost:5000'); // Replace 'http://localhost:5000' with your server URL
 
@@ -12,98 +14,106 @@ const MultiplayerTypingTestGame = () => {
   const [userInput, setUserInput] = useState('');
   const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
-  const [wordCount, setWordCount] = useState(0);
-  const [accuracy, setAccuracy] = useState(100);
-  const [percentageCompleted, setPercentageCompleted] = useState(0);
-  const [timer, setTimer] = useState(60);
-  const [wpm, setWpm] = useState(0);
+  const [index, setIndex] = useState(0);
+  const [startTimer, setStartTimer] = useState(5); // Timer to start the game
+  const [typingTimer, setTypingTimer] = useState(60); // Timer for typing the paragraph
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [matchedDifficulty, setMatchedDifficulty] = useState(null);
-  const [opponentInput, setOpponentInput] = useState('');
-  const [opponentEndTime, setOpponentEndTime] = useState(null);
-    const [opponentWpm, setOpponentWpm] = useState(0);
-    const {level , setLevel} = useContext(LevelContext)
+  const { level, setLevel } = useContext(LevelContext);
   const { isDarkMode } = useDarkMode();
-  const navigate = useNavigate();
-  const { index } = useParams(); // Get the multiplayer hash from the URL
+  const { roomId } = useParams(); // Get the roomId and index from the URL
+  const [roomData, setRoomData] = useState(null); // State to store room data
+  const [scoreboard, setScoreboard] = useState([]); // State to store scoreboard
+  const [wpm, setWpm] = useState(0); // State to store WPM
+  const [accuracy, setAccuracy] = useState(100); // State to store accuracy
+  const [percentageCompleted, setPercentageCompleted] = useState(0);
+  const { username } = useContext(NameContext) // State to store percentage completion
+  const [winner, setWinner] = useState('');
+  const navigate = useNavigate()
 
+  // Fetch Room Data
   useEffect(() => {
-    // Listen for opponent typing progress from the server
-    socket.on('opponent-typing', ({ userInput, endTime, wpm }) => {
-      setOpponentInput(userInput);
-      setOpponentEndTime(endTime);
-      setOpponentWpm(wpm);
+    // Get the latest room data from the server
+    socket.emit('get-room-data', { roomId });
+
+    // Listen for room data updates from the server
+    socket.on('room-data', (data) => {
+      setRoomData(data);
+      setIndex(data.index);
+      setText(getSampleTextByDifficulty(data.difficulty, data.index));
     });
 
-    // Listen for game results from the server
-    socket.on('game-results', ({ userWpm, opponentWpm }) => {
-      setWpm(userWpm);
-      setOpponentWpm(opponentWpm);
+    // Listen for scoreboard updates from the server
+    socket.on('scoreboard-update', (data) => {
+      setScoreboard(data);
     });
 
+    // Cleanup the socket connection when component unmounts
     return () => {
-      socket.disconnect();
+      socket.off('room-data');
+      socket.off('scoreboard-update');
     };
   }, []);
 
   useEffect(() => {
-    // Start the game when both players are ready
-    if (index != null) {
-        if ( level == 'easy') {
-           setText(Easy[index]);
-        } else if (level == 'medium') {
-            setText(Medium[index])
-        } else {
-            setText(Hard[index])
-       }
-      
-      setIsGameStarted(true);
-      setStartTime(new Date());
-    }
-  }, [matchedDifficulty, index]);
-
-  useEffect(() => {
-    if (isGameStarted && timer > 0) {
-      const interval = setInterval(() => {
-        setTimer((prevTimer) => Math.max(prevTimer - 1, 0));
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-
-    if (timer === 0 && !endTime) {
-      setEndTime(new Date());
-      setIsGameStarted(false);
-      setTimer(0);
-      // Calculate and emit user results to the server
-      const timeInSeconds = (endTime - startTime) / 1000;
+   
+    if (!endTime) {
+      // Calculate WPM, accuracy, and percentage completed when the game is running
+      const timeInSeconds = (Date.now() - startTime) / 1000;
       const wordsTyped = userInput.trim().split(/\s+/).length;
-      const calculatedWpm = Math.round((wordsTyped / timeInSeconds) * 60);
-      socket.emit('game-results', { wpm: calculatedWpm });
-    }
-  }, [isGameStarted, timer, endTime, startTime, userInput]);
+      const errors = calculateErrors(text, userInput);
+      const netWpm = Math.max(Math.round(((wordsTyped - errors) / timeInSeconds) * 60), 0);
+      setWpm(netWpm);
 
-  useEffect(() => {
-    if (endTime && percentageCompleted < 100) {
-      const timeInSeconds = (endTime - startTime) / 1000;
-      const wordsTyped = userInput.trim().split(/\s+/).length;
-      const calculatedWpm = Math.round((wordsTyped / timeInSeconds) * 60);
-      setWpm(Math.max(calculatedWpm, 0));
-      // Emit typing progress to the server for the opponent to see
-      socket.emit('opponent-typing', { userInput, endTime, wpm: calculatedWpm });
-    }
-  }, [endTime, percentageCompleted, startTime, userInput]);
+      const correctWordCount = calculateCorrectWords(text, userInput);
+      const totalWords = text.trim().split(/\s+/).length;
+      const calculatedAccuracy = (correctWordCount / totalWords) * 100;
+      setAccuracy(calculatedAccuracy);
 
-  const getRandomStringFromArray = (array) => {
-    if (!Array.isArray(array) || array.length === 0) {
-      return null;
-    }
+      const calculatedPercentage = (userInput.length / text.length) * 100;
+      setPercentageCompleted(calculatedPercentage);
+      console.log(wpm)
+      socket.emit('update-score', {
+        roomId,
+        username,
+        clientId: socket.id,
+        wpm: wpm,
+        accuracy,
+        percentageCompleted,
+      })
 
-    const randomIndex = Math.floor(Math.random() * array.length);
-    return array[randomIndex];
-    };
+    } 
     
-    const calculateErrors = (originalText, typedText) => {
+  }, [isGameStarted, typingTimer, endTime, startTime, text, userInput]);
+
+  useEffect(() => {
+    // Notify winner when the game ends
+    if (startTimer === 0 && winner) {
+      toast("winner is : " , winner)
+      navigate('/')
+    }
+  }, [endTime, winner]);
+  useEffect(() => {
+    if (!endTime) {
+      // Listen for 'scoreboard-update' event from the server
+      console.log("get scoreboard")
+      socket.on('scoreboard-update', ({ scoreboard }) => {
+        // Update the scoreboard state with the received data
+        setScoreboard(scoreboard);
+        console.log(scoreboard)
+        if (scoreboard.length > 0) {
+        setWinner(scoreboard[0].username);
+      }
+      });
+ 
+
+      // Clean up the socket connection when the component unmounts
+      return () => {
+        socket.off('scoreboard-update');
+      };
+    }
+  }, []);
+
+  const calculateErrors = (originalText, typedText) => {
     const originalWords = originalText.trim().split(/\s+/);
     const typedWords = typedText.trim().split(/\s+/);
 
@@ -117,83 +127,97 @@ const MultiplayerTypingTestGame = () => {
     return errors;
   };
 
-  const handleInputChange = (e) => {
-    const { value } = e.target;
-    setUserInput(value);
-
-    if (!isGameStarted && value !== '') {
-      setStartTime(new Date());
-      setIsGameStarted(true);
-    }
-
-    if (value === text) {
-      setEndTime(new Date());
-      setIsGameStarted(false);
-      setTimer(0);
-    }
-
-    // Calculate WPM, accuracy, and percentage completed in real-time
-    const trimmedUserInput = value.trim();
-    setWordCount(trimmedUserInput.split(/\s+/).length);
-
-    const correctWords = text.trim().split(/\s+/);
-    const typedWords = trimmedUserInput.split(/\s+/);
+  const calculateCorrectWords = (originalText, typedText) => {
+    const originalWords = originalText.trim().split(/\s+/);
+    const typedWords = typedText.trim().split(/\s+/);
 
     let correctWordCount = 0;
     typedWords.forEach((word, index) => {
-      if (word === correctWords[index]) {
+      if (word === originalWords[index]) {
         correctWordCount++;
       }
     });
 
-    setAccuracy((correctWordCount / typedWords.length) * 100);
-    setPercentageCompleted((trimmedUserInput.length / text.length) * 100);
+    return correctWordCount;
+  };
 
-    // Calculate and update Net WPM in real-time
-    if (isGameStarted && percentageCompleted < 100) {
-      const timeInSeconds = (Date.now() - startTime) / 1000;
-      const wordsTyped = trimmedUserInput.trim().split(/\s+/).length;
-      const errors = calculateErrors(text, trimmedUserInput);
-      const netWpm = Math.max(Math.round(((wordsTyped - errors) / timeInSeconds) * 60), 0);
-      setWpm(netWpm);
+  const getSampleTextByDifficulty = (difficulty, index) => {
+    switch (difficulty) {
+      case 'easy':
+        return Easy[index];
+      case 'medium':
+        return Medium[index];
+      case 'hard':
+        return Hard[index];
+      default:
+        return '';
     }
   };
 
-  const handleTextAreaClick = (e) => {
-    if (!isGameStarted || endTime) {
-      e.preventDefault();
+  // Start the game after the start timer
+  useEffect(() => {
+    if (startTimer > 0) {
+      const interval = setInterval(() => {
+        setStartTimer((prevTimer) => Math.max(prevTimer - 1, 0));
+      }, 1000);
+
+      return () => clearInterval(interval);
+    } else {
+      setIsGameStarted(true);
+      setStartTime(new Date());
     }
+  }, [startTimer]);
+
+  // Update user input as they type the text
+  const handleInputChange = (e) => {
+    const { value } = e.target;
+    setUserInput(value);
   };
 
-  const handleCopy = (e) => {
-    e.preventDefault();
-  };
+  
 
-  const handlePaste = (e) => {
-    e.preventDefault();
-  };
+  // Start the typing timer after the start timer ends
+  useEffect(() => {
+    if (isGameStarted && startTimer === 0) {
+      const interval = setInterval(() => {
+        setTypingTimer((prevTimer) => Math.max(prevTimer - 1, 0));
+      }, 1000);
 
-  const isCorrectWord = (typedWord, correctWord) => typedWord === correctWord;
+      return () => clearInterval(interval);
+    }
+  }, [isGameStarted, startTimer]);
 
+  // Request scoreboard data from the server every 5 seconds
+  useEffect(() => {
+    if (isGameStarted && typingTimer === 0 && endTime && endTime !== null && endTime !== undefined) {
+      socket.emit('get-scoreboard', { roomId });
+
+      // Set up a timer to fetch updated scoreboard every 5 seconds
+      const scoreboardInterval = setInterval(() => {
+        socket.emit('get-scoreboard', { roomId });
+      }, 5000);
+
+      // Clear the interval when the component unmounts
+      return () => clearInterval(scoreboardInterval);
+    }
+  }, [isGameStarted, typingTimer, endTime, roomId]);
+
+  // Render Test Area
   return (
-    <div className={`flex flex-col justify-center items-center h-screen ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
-      <div className={`max-w-[600px] mx-auto my-8 p-4 border rounded-lg shadow ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
-        <h1 className={`text-2xl font-bold text-center mb-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Typing Test</h1>
-        <div
-          className={`h-40 overflow-y-scroll bg-gray-100 p-4 rounded-lg mb-4 ${
-            isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
-          }`}
-          onCopy={handleCopy}
-          onPaste={handlePaste}
-        >
-          {text.split(' ').map((word, index) => {
-            const typedWord = userInput.trim().split(/\s+/)[index] || '';
-            const isCorrect = isCorrectWord(typedWord, word);
-            const isVisited = index < userInput.trim().split(/\s+/).length;
+    <div className={`flex  justify-between items-center h-screen ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+      <div className={` max-w-[600px] mx-auto my-8 p-4 border rounded-lg shadow ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+        <h1 className={`text-2xl font-bold text-center mb-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>
+          Typing Test
+        </h1>
+        <div className={`h-40 overflow-y-scroll bg-gray-100 p-4 rounded-lg mb-4 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+          {text && text.split(' ').map((word, idx) => {
+            const typedWord = userInput.trim().split(/\s+/)[idx] || '';
+            const isCorrect = typedWord === word;
+            const isVisited = idx < userInput.trim().split(/\s+/).length;
             const color = isCorrect ? 'green' : isVisited ? 'red' : 'gray';
 
             return (
-              <span key={index} style={{ color }}>
+              <span key={idx} style={{ color }}>
                 {word}{' '}
               </span>
             );
@@ -204,16 +228,17 @@ const MultiplayerTypingTestGame = () => {
           rows="5"
           value={userInput}
           onChange={handleInputChange}
-          onClick={handleTextAreaClick}
-          disabled={endTime || timer === 0}
+          disabled={!isGameStarted || (endTime && typingTimer === 0)}
           placeholder="Start typing here..."
           style={{ caretColor: 'transparent' }}
         />
         <div className="text-center">
-          {endTime || timer === 0 ? (
-            <p className="text-green-600 font-bold">Time: {((endTime || 0) - startTime) / 1000 > 60 ? 60 : ((endTime || 0) - startTime) / 1000} seconds</p>
+          {endTime || typingTimer === 0 ? (
+            <p className="text-green-600 font-bold">Time: {((endTime || 0) - startTime) / 1000 < 0 ? 60 : ((endTime || 0) - startTime) / 1000} seconds</p>
+          ) : startTimer > 0 ? (
+            <p className="text-blue-600 font-bold">Preparing to start: {startTimer}s</p>
           ) : (
-            <p className="text-blue-600 font-bold">Time Remaining: {timer}s</p>
+            <p className="text-blue-600 font-bold">Time Remaining: {typingTimer}s</p>
           )}
           <p className="text-gray-400">Net WPM: {wpm}</p>
           <p className="text-gray-400">
@@ -222,6 +247,30 @@ const MultiplayerTypingTestGame = () => {
           <p className="text-gray-400">Accuracy: {accuracy.toFixed(2)}%</p>
         </div>
       </div>
+      {isGameStarted && endTime - startTime > 0 && <p className="text-blue-600 font-bold">Game in Progress...</p>}
+      
+        <div className={`max-w-[600px] mx-auto my-8 p-4 border rounded-lg shadow ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${isDarkMode ? 'text-white' : 'text-black'}`}>Scoreboard:</h2>
+          <div className="text-center">
+            <table className="table-auto mx-auto">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2">Username</th>
+                  <th className="px-4 py-2">WPM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scoreboard && scoreboard.map((score, idx) => (
+                  <tr key={idx}>
+                    <td className="border px-4 py-2">{score.username}</td>
+                    <td className="border px-4 py-2">{score.score}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      <ToastContainer/>
     </div>
   );
 };
