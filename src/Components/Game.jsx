@@ -11,7 +11,7 @@ const TypingTestGame = () => {
   const [wordCount, setWordCount] = useState(0);
   const [accuracy, setAccuracy] = useState(100);
   const [percentageCompleted, setPercentageCompleted] = useState(0);
-  const [timer, setTimer] = useState(20);
+  const [timer, setTimer] = useState(60);
   const [wpm, setWpm] = useState(0);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [sampleText, setSampleText] = useState(getRandomStringFromArray(Hard));
@@ -26,17 +26,16 @@ const TypingTestGame = () => {
     return array[randomIndex];
   }
 
-    const { level, setLevel } = useContext(LevelContext);
-    useEffect(() => {
-        if (level == 'easy') {
-            setSampleText(getRandomStringFromArray(Easy))
-        }
-        else if (level == 'medium') {
-            setSampleText(getRandomStringFromArray(Medium))
-        } else {
-           setSampleText(getRandomStringFromArray(Hard))
-        }
-    },[level])
+  const { level, setLevel } = useContext(LevelContext);
+  useEffect(() => {
+    if (level === 'easy') {
+      setSampleText(getRandomStringFromArray(Easy));
+    } else if (level === 'medium') {
+      setSampleText(getRandomStringFromArray(Medium));
+    } else {
+      setSampleText(getRandomStringFromArray(Hard));
+    }
+  }, [level]);
 
   useEffect(() => {
     setText(sampleText);
@@ -62,10 +61,25 @@ const TypingTestGame = () => {
     if (endTime && percentageCompleted < 100) {
       const timeInSeconds = (endTime - startTime) / 1000;
       const wordsTyped = userInput.trim().split(/\s+/).length;
-      const calculatedWpm = Math.round((wordsTyped / timeInSeconds) * 60);
-      setWpm(Math.max(calculatedWpm, 0));
+      const errors = calculateErrors(text, userInput);
+      const netWpm = Math.max(Math.round(((wordsTyped - errors) / timeInSeconds) * 60), 0);
+      setWpm(netWpm);
     }
-  }, [endTime, percentageCompleted, startTime, userInput]);
+  }, [endTime, percentageCompleted, startTime, text, userInput]);
+
+  const calculateErrors = (originalText, typedText) => {
+    const originalWords = originalText.trim().split(/\s+/);
+    const typedWords = typedText.trim().split(/\s+/);
+
+    let errors = 0;
+    typedWords.forEach((word, index) => {
+      if (word !== originalWords[index]) {
+        errors++;
+      }
+    });
+
+    return errors;
+  };
 
   const handleInputChange = (e) => {
     const { value } = e.target;
@@ -99,12 +113,13 @@ const TypingTestGame = () => {
     setAccuracy((correctWordCount / typedWords.length) * 100);
     setPercentageCompleted((trimmedUserInput.length / text.length) * 100);
 
-    // Calculate and update WPM in real-time
+    // Calculate and update Net WPM in real-time
     if (isGameStarted && percentageCompleted < 100) {
       const timeInSeconds = (Date.now() - startTime) / 1000;
       const wordsTyped = trimmedUserInput.trim().split(/\s+/).length;
-      const calculatedWpm = Math.round((wordsTyped / timeInSeconds) * 60);
-      setWpm(Math.max(calculatedWpm, 0));
+      const errors = calculateErrors(text, trimmedUserInput);
+      const netWpm = Math.max(Math.round(((wordsTyped - errors) / timeInSeconds) * 60), 0);
+      setWpm(netWpm);
     }
   };
 
@@ -138,7 +153,8 @@ const TypingTestGame = () => {
           {text.split(' ').map((word, index) => {
             const typedWord = userInput.trim().split(/\s+/)[index] || '';
             const isCorrect = isCorrectWord(typedWord, word);
-            const color = isCorrect ? 'green' : 'red';
+            const isVisited = index < userInput.trim().split(/\s+/).length;
+            const color = isCorrect ? 'green' : isVisited ? 'red' : 'gray';
 
             return (
               <span key={index} style={{ color }}>
@@ -159,11 +175,11 @@ const TypingTestGame = () => {
         />
         <div className="text-center">
           {endTime || timer === 0 ? (
-            <p className="text-green-600 font-bold">Time: {((endTime || 0) - startTime) / 1000} seconds</p>
+            <p className="text-green-600 font-bold">Time: {((endTime || 0) - startTime) / 1000 > 60 ? 60 : ((endTime || 0) - startTime) / 1000} seconds</p>
           ) : (
             <p className="text-blue-600 font-bold">Time Remaining: {timer}s</p>
           )}
-          <p className="text-gray-400">WPM: {wpm}</p>
+          <p className="text-gray-400">Net WPM: {wpm}</p>
           <p className="text-gray-400">
             Percentage Completed: {percentageCompleted > 100 ? 100 : percentageCompleted.toFixed(2)}%
           </p>
