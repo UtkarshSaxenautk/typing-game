@@ -2,12 +2,12 @@ import React, { useContext } from 'react';
 import { LevelContext } from '../GameContext';
 import { useDarkMode } from '../DarkModeContext';
 import { useNavigate } from 'react-router-dom';
-import io from 'socket.io-client'; // Import socket.io-client
 
-const MultiPlayer = () => {
+const Multiplayer = () => {
   const { level, setLevel } = useContext(LevelContext);
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
+
 
   const buttonStyle = `py-2 px-4 rounded-lg hover:bg-${isDarkMode ? 'white' : 'black'} ${
     isDarkMode ? 'text-black' : 'text-white'
@@ -15,18 +15,7 @@ const MultiPlayer = () => {
 
   const handleDifficultyClick = (difficulty) => {
     setLevel(difficulty);
-
-    // Replace 'http://localhost:5000' with your server URL
-    const socket = io('http://localhost:5000');
-
-    // Emit the selected difficulty level to the server
-    socket.emit('select-difficulty', difficulty);
-
-    // Listen for 'matched-difficulty' event from the server
-    socket.on('matched-difficulty', (data) => {
-      console.log('Matched Difficulty:', data.dif);
-      navigate(`/start-mult/${data.index}`); // Navigate to the multiplayer game component
-    });
+    navigate(`/room-list/${difficulty}`); // Navigate to the RoomList page for the selected difficulty
   };
 
   return (
@@ -51,4 +40,4 @@ const MultiPlayer = () => {
   );
 };
 
-export default MultiPlayer;
+export default Multiplayer;
