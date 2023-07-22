@@ -65,8 +65,8 @@ const MultiplayerTypingTestGame = () => {
       setWpm(netWpm);
 
       const correctWordCount = calculateCorrectWords(text, userInput);
-      const totalWords = text.trim().split(/\s+/).length;
-      const calculatedAccuracy = (correctWordCount / totalWords) * 100;
+      //const totalWords = text.trim().split(/\s+/).length;
+      const calculatedAccuracy = (correctWordCount / wordsTyped) * 100;
       setAccuracy(calculatedAccuracy);
 
       const calculatedPercentage = (userInput.length / text.length) * 100;
@@ -85,13 +85,7 @@ const MultiplayerTypingTestGame = () => {
     
   }, [isGameStarted, typingTimer, endTime, startTime, text, userInput]);
 
-  useEffect(() => {
-    // Notify winner when the game ends
-    if (startTimer === 0 && winner) {
-      toast("winner is : " , winner)
-      navigate('/')
-    }
-  }, [endTime, winner]);
+  
   useEffect(() => {
     if (!endTime) {
       // Listen for 'scoreboard-update' event from the server
@@ -187,20 +181,7 @@ const MultiplayerTypingTestGame = () => {
     }
   }, [isGameStarted, startTimer]);
 
-  // Request scoreboard data from the server every 5 seconds
-  useEffect(() => {
-    if (isGameStarted && typingTimer === 0 && endTime && endTime !== null && endTime !== undefined) {
-      socket.emit('get-scoreboard', { roomId });
-
-      // Set up a timer to fetch updated scoreboard every 5 seconds
-      const scoreboardInterval = setInterval(() => {
-        socket.emit('get-scoreboard', { roomId });
-      }, 5000);
-
-      // Clear the interval when the component unmounts
-      return () => clearInterval(scoreboardInterval);
-    }
-  }, [isGameStarted, typingTimer, endTime, roomId]);
+ 
 
   // Render Test Area
   return (
@@ -254,7 +235,8 @@ const MultiplayerTypingTestGame = () => {
           <div className="text-center">
             <table className="table-auto mx-auto">
               <thead>
-                <tr>
+              <tr>
+                  <th className='px-4 py-2'>Rank</th>
                   <th className="px-4 py-2">Username</th>
                   <th className="px-4 py-2">WPM</th>
                 </tr>
@@ -262,6 +244,7 @@ const MultiplayerTypingTestGame = () => {
               <tbody>
                 {scoreboard && scoreboard.map((score, idx) => (
                   <tr key={idx}>
+                    <td className='border px-4 py-2'>{idx + 1}</td>
                     <td className="border px-4 py-2">{score.username}</td>
                     <td className="border px-4 py-2">{score.score}</td>
                   </tr>

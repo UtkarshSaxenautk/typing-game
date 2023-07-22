@@ -8,6 +8,7 @@ const Multiplayer = () => {
   const { isDarkMode } = useDarkMode();
   const navigate = useNavigate();
 
+
   const buttonStyle = `py-2 px-4 rounded-lg hover:bg-${isDarkMode ? 'white' : 'black'} ${
     isDarkMode ? 'text-black' : 'text-white'
   }`;

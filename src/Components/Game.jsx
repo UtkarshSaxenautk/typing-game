@@ -35,6 +35,21 @@ const TypingTestGame = () => {
     } else {
       setSampleText(getRandomStringFromArray(Hard));
     }
+    let easy_size = 0;
+    for (let i = 0; i < Easy.length; i++){
+      easy_size += Easy[i].length;
+    }
+    console.log("easy" ,easy_size / 5);
+    let medium_size = 0;
+    for (let i = 0; i < Medium.length; i++){
+      medium_size += Medium[i].length;
+    }
+    console.log("medium", medium_size / 5);
+    let hard_size = 0;
+    for (let i = 0; i < Hard.length; i++){
+      hard_size += Hard[i].length;
+    }
+    console.log("hard" , hard_size/5)
   }, [level]);
 
   useEffect(() => {
@@ -147,8 +162,7 @@ const TypingTestGame = () => {
           className={`h-40 overflow-y-scroll bg-gray-100 p-4 rounded-lg mb-4 ${
             isDarkMode ? 'bg-gray-800' : 'bg-gray-100'
           }`}
-          onCopy={handleCopy}
-          onPaste={handlePaste}
+         
         >
           {text.split(' ').map((word, index) => {
             const typedWord = userInput.trim().split(/\s+/)[index] || '';

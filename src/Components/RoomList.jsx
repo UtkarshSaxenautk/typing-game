@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { NameContext } from '../GameContext';
 import { useDarkMode } from '../DarkModeContext';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const RoomCard = ({ room, handleJoinRoom }) => {
   const { isDarkMode } = useDarkMode();
@@ -65,7 +67,11 @@ const RoomList = () => {
     socket.emit('create-room', { difficulty, username });
 
     socket.once('room-created', ({ roomId }) => {
-      navigate(`/room/${difficulty}/${roomId}`);
+      if (roomId === "no") {
+        toast("max rooms are formed join one of them")
+      } else {
+        navigate(`/room/${difficulty}/${roomId}`);
+      }
     });
   };
 
@@ -120,6 +126,7 @@ const RoomList = () => {
           </button>
         </div>
       </div>
+      <ToastContainer/>
     </div>
   );
 };
